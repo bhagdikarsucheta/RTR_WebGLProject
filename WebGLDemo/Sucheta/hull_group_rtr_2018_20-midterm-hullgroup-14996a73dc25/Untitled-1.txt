@@ -1,0 +1,330 @@
+// media/shaders/deferredshading/render.vs.glsl
+
+"#version 420 core" \
+"\n" \
+"layout (location = 0) in vec4 position;" \
+"layout (location = 1) in vec3 normal;" \
+"layout (location = 2) in vec3 tangent;" \
+"layout (location = 4) in vec2 texcoord0;" \
+"out VS_OUT" \
+"{" \
+    "vec3    ws_coords;" \
+    "vec3    normal;" \
+    "vec3    tangent;" \
+    "vec2    texcoord0;" \
+    "flat uint    material_id;" \
+"} vs_out;" \
+"layout (std140) uniform transforms" \
+"{" \
+    "mat4        projection_matrix;" \
+    "mat4        view_matrix;" \
+    "mat4        model_matrix[256];" \
+"};" \
+"void main(void)" \
+"{" \
+    "mat4 mv_matrix = view_matrix * model_matrix[gl_InstanceID];" \
+    "gl_Position = projection_matrix * mv_matrix * position;" \
+    "vs_out.ws_coords = (model_matrix[gl_InstanceID] * position).xyz;" \
+    "vs_out.normal = mat3(model_matrix[gl_InstanceID]) * normal;" \
+    "vs_out.tangent = tangent;" \
+    "vs_out.texcoord0 = texcoord0;" \
+    "vs_out.material_id = uint(gl_InstanceID);" \
+"}";
+
+
+
+// Fragment Shader
+//media/shaders/deferredshading/render.fs.glsl
+
+"#version 420 core" \
+"\n" \
+"layout (location = 0) out uvec4 color0;" \
+"layout (location = 1) out vec4 color1;" \
+"in VS_OUT" \
+"{" \
+    "vec3    ws_coords;" \
+    "vec3    normal;" \
+    "vec3    tangent;" \
+    "vec2    texcoord0;" \
+    "flat uint    material_id;" \
+"} fs_in;" \
+"layout (binding = 0) uniform sampler2D tex_diffuse;" \
+"void main(void)" \
+"{" \
+    "uvec4 outvec0 = uvec4(0);" \
+    "vec4 outvec1 = vec4(0);" \
+    "vec3 color = texture(tex_diffuse, fs_in.texcoord0).rgb;" \
+    "outvec0.x = packHalf2x16(color.xy);" \
+    "outvec0.y = packHalf2x16(vec2(color.z, fs_in.normal.x));" \
+    "outvec0.z = packHalf2x16(fs_in.normal.yz);" \
+    "outvec0.w = fs_in.material_id;" \
+    "outvec1.xyz = fs_in.ws_coords;" \
+    "outvec1.w = 30.0;" \
+    "color0 = outvec0;" \
+    "color1 = outvec1;" \
+"}";
+
+
+
+
+////////////////////////////////////////////////////
+// VertexShader for second program
+// media/shaders/deferredshading/render-nm.vs.glsl
+
+"#version 420" \
+"\n" \
+"layout (location = 0) in vec4 position;" \
+"layout (location = 1) in vec3 normal;" \
+"layout (location = 2) in vec3 tangent;" \
+"layout (location = 4) in vec2 texcoord0;" \
+"out VS_OUT" \
+"{" \
+    "vec3        ws_coords;" \
+    "vec3        normal;" \
+    "vec3        tangent;" \
+    "vec2        texcoord0;" \
+    "flat uint   material_id;" \
+"} vs_out;" \
+"layout (std140) uniform transforms" \
+"{" \
+    "mat4        projection_matrix;" \
+    "mat4        view_matrix;" \
+    "mat4        model_matrix[256];" \
+"};" \
+"void main(void)" \
+"{" \
+    "mat4 mv_matrix = view_matrix * model_matrix[gl_InstanceID];" \
+    "gl_Position = projection_matrix * mv_matrix * position;" \
+    "vs_out.ws_coords = (model_matrix[gl_InstanceID] * position).xyz;" \
+    "vs_out.normal = mat3(model_matrix[gl_InstanceID]) * normal;" \
+    "vs_out.tangent = tangent;" \
+    "vs_out.texcoord0 = texcoord0;" \
+    "vs_out.material_id = uint(gl_InstanceID);" \
+"}";
+
+
+// Fragment Shader
+// media/shaders/deferredshading/render-nm.fs.glsl
+
+"#version 420 core" \
+"\n" \
+"layout (location = 0) out uvec4 color0;" \
+"layout (location = 1) out vec4 color1;" \
+"in VS_OUT" \
+"{" \
+    "vec3    ws_coords;" \
+    "vec3    normal;" \
+    "vec3    tangent;" \
+    "vec2    texcoord0;" \
+    "flat uint    material_id;" \
+"} fs_in;" \
+"layout (binding = 0) uniform sampler2D tex_diffuse;" \
+"layout (binding = 1) uniform sampler2D tex_normal_map;" \
+"void main(void)" \
+"{" \
+    "vec3 N = normalize(fs_in.normal);" \
+    "vec3 T = normalize(fs_in.tangent);" \
+    "vec3 B = cross(N, T);" \
+    "mat3 TBN = mat3(T, B, N);" \
+    "vec3 nm = texture(tex_normal_map, fs_in.texcoord0).xyz * 2.0 - vec3(1.0);" \
+    "nm = TBN * normalize(nm);" \
+    "uvec4 outvec0 = uvec4(0);" \
+    "vec4 outvec1 = vec4(0);" \
+    "vec3 color = texture(tex_diffuse, fs_in.texcoord0).rgb;" \
+    "outvec0.x = packHalf2x16(color.xy);" \
+    "outvec0.y = packHalf2x16(vec2(color.z, nm.x));" \
+    "outvec0.z = packHalf2x16(nm.yz);" \
+    "outvec0.w = fs_in.material_id;" \
+    "outvec1.xyz = fs_in.ws_coords;" \
+    "outvec1.w = 60.0;" \
+    "color0 = outvec0;" \
+    "color1 = outvec1;" \
+"}";
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////////
+// 3) Light shaders
+
+// Vertex Shader
+//media/shaders/deferredshading/light.vs.glsl
+
+"#version 420 core" \
+"\n" \
+"void main(void)" \
+"{" \
+    "const vec4 verts[4] = vec4[4](vec4(-1.0, -1.0, 0.5, 1.0)," \
+                                  "vec4( 1.0, -1.0, 0.5, 1.0)," \
+                                  "vec4(-1.0,  1.0, 0.5, 1.0)," \
+                                  "vec4( 1.0,  1.0, 0.5, 1.0));" \
+    "gl_Position = verts[gl_VertexID];" \
+"}";
+
+
+// Fragment shader
+// media/shaders/deferredshading/light.fs.glsl
+
+"#version 420" \
+"layout (location = 0) out vec4 color_out;" \
+"layout (binding = 0) uniform usampler2D gbuf_tex0;" \
+"layout (binding = 1) uniform sampler2D gbuf_tex1;" \
+"struct light_t" \
+"{" \
+    "vec3    position;" \
+    "uint    pad0;" \
+    "vec3    color;" \
+    "uint    pad1;" \
+"};" \
+"uniform int num_lights = 64;" \
+"layout (std140) uniform light_block" \
+"{" \
+    "light_t     light[64];" \
+"};" \
+"struct fragment_info_t" \
+"{" \
+    "vec3 color;" \
+    "vec3 normal;" \
+    "float specular_power;" \
+    "vec3 ws_coord;" \
+    "uint material_id;" \
+"};" \
+"void unpackGBuffer(ivec2 coord, out fragment_info_t fragment)" \
+"{" \
+    "uvec4 data0 = texelFetch(gbuf_tex0, ivec2(coord), 0);" \
+    "vec4 data1 = texelFetch(gbuf_tex1, ivec2(coord), 0);" \
+    "vec2 temp;" \
+    "temp = unpackHalf2x16(data0.y);" \
+    "fragment.color = vec3(unpackHalf2x16(data0.x), temp.x);" \
+    "fragment.normal = normalize(vec3(temp.y, unpackHalf2x16(data0.z)));" \
+    "fragment.material_id = data0.w;" \
+    "fragment.ws_coord = data1.xyz;" \
+    "fragment.specular_power = data1.w;" \
+"}" \
+"vec4 light_fragment(fragment_info_t fragment)" \
+"{" \
+    "int i;" \
+    "vec4 result = vec4(0.0, 0.0, 0.0, 1.0);" \
+    "if (fragment.material_id != 0)" \
+    "{" \
+        "for (i = 0; i < num_lights; i++)" \
+        "{" \
+            "vec3 L = light[i].position - fragment.ws_coord;" \
+            "float dist = length(L);" \
+            "L = normalize(L);" \
+            "vec3 N = normalize(fragment.normal);" \
+            "vec3 R = reflect(-L, N);" \
+            "float NdotR = max(0.0, dot(N, R));" \
+            "float NdotL = max(0.0, dot(N, L));" \
+            "float attenuation = 50.0 / (pow(dist, 2.0) + 1.0);" \
+            "vec3 diffuse_color  = 1.0 * light[i].color * fragment.color * NdotL * attenuation;" \
+            "vec3 specular_color = vec3(1.0) /* * light[i].color */ * pow(NdotR, fragment.specular_power) * attenuation;" \
+            "result += vec4(diffuse_color + specular_color, 0.0);" \
+        "}" \
+    "}" \
+    "return result;" \
+"}" \
+"void main(void)" \
+"{" \
+    "fragment_info_t fragment;" \
+    "unpackGBuffer(ivec2(gl_FragCoord.xy), fragment);" \
+    "color_out = light_fragment(fragment);" \
+"}";
+
+
+
+
+
+
+
+
+/////////////////////////////////////////////
+// Fragment shader
+
+//media/shaders/deferredshading/render-vis.fs.glsl
+
+"#version 420" \
+"\n" \
+"layout (location = 0) out vec4 color_out;" \
+"layout (binding = 0) uniform usampler2D gbuf_tex0;" \
+"layout (binding = 1) uniform sampler2D gbuf_tex1;" \
+"struct light_t" \
+"{" \
+    "vec3    position;" \
+    "uint    pad0;" \
+    "vec3    color;" \
+    "uint    pad1;" \
+"};" \
+"uniform int num_lights = 64;" \
+"uniform int vis_mode = 1;" \
+"layout (std140) uniform light_block" \
+"{" \
+    "light_t     light[64];" \
+"};" \
+"struct fragment_info_t" \
+"{" \
+    "vec3 color;" \
+    "vec3 normal;" \
+    "float specular_power;" \
+    "vec3 ws_coord;" \
+    "uint material_id;" \
+"};" \
+"void unpackGBuffer(ivec2 coord, out fragment_info_t fragment)" \
+"{" \
+    "uvec4 data0 = texelFetch(gbuf_tex0, ivec2(coord), 0);" \
+    "vec4 data1 = texelFetch(gbuf_tex1, ivec2(coord), 0);" \
+    "vec2 temp;" \
+    "temp = unpackHalf2x16(data0.y);" \
+    "fragment.color = vec3(unpackHalf2x16(data0.x), temp.x);" \
+    "fragment.normal = normalize(vec3(temp.y, unpackHalf2x16(data0.z)));" \
+    "fragment.material_id = data0.w;" \
+    "fragment.ws_coord = data1.xyz;" \
+    "fragment.specular_power = data1.w;" \
+"}" \
+"vec4 vis_fragment(fragment_info_t fragment)" \
+"{" \
+    "vec4 result = vec4(0.0);" \
+    "switch (vis_mode)" \
+    "{" \
+        "case 1:" \
+        "default:" \
+            "result = vec4(fragment.normal * 0.5 + vec3(0.5), 1.0);" \
+            "break;" \
+        "case 2:" \
+            "result = vec4(fragment.ws_coord * 0.02 + vec3(0.5, 0.5, 0.0), 1.0);" \
+            "break;" \
+        "case 3:" \
+            "result = vec4(fragment.color, 1.0);" \
+            "break;" \
+        "case 4:" \
+            "result = vec4(fragment.specular_power," \
+                          "float(fragment.material_id & 15) / 15.0," \
+                          "float(fragment.material_id / 16) / 15.0," \
+                          "1.0);" \
+            "break;" \
+    "}" \
+    "return result;" \
+"}" \
+"void main(void)" \
+"{" \
+    "fragment_info_t fragment;" \
+    "unpackGBuffer(ivec2(gl_FragCoord.xy), fragment);" \
+    "color_out = vis_fragment(fragment);" \
+"}";
+
+
+
+
+
+C:\Program Files (x86)\Windows Kits\10\Lib\10.0.17763.0\um\x64
+
+
+
+
+
+
+
+
+
+
